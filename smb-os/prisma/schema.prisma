@@ -1,0 +1,549 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas = ["public", "google_analytics"]
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  @@schema("public") 
+}
+
+// Model for shops
+model Shop {
+  id          Int          @id @default(autoincrement())
+  shopifyId   BigInt?      @unique
+  name        String
+  domain      String       @unique
+  email       String?
+  currency    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lastSyncAt  DateTime?
+  products    Product[]
+  customers   Customer[]
+  orders      Order[]
+  collections Collection[]
+  syncLogs    SyncLog[]
+  featureUsage FeatureUsage[]
+  @@schema("public") 
+}
+
+// Model for customers
+model Customer {
+  id          Int               @id @default(autoincrement())
+  customerId  BigInt            @unique
+  shopId      Int
+  firstName   String?
+  lastName    String?
+  email       String?
+  phone       String?
+  totalSpent  Float?
+  ordersCount Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  shop        Shop              @relation(fields: [shopId], references: [id])
+  orders      Order[]
+  addresses   CustomerAddress[]
+  @@schema("public") 
+}
+
+// Model for products
+model Product {
+  id          Int                 @id @default(autoincrement())
+  productId   BigInt              @unique
+  shopId      Int
+  title       String
+  handle      String
+  vendor      String?
+  status      String              @default("active")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  shop        Shop                @relation(fields: [shopId], references: [id])
+  variants    ProductVariant[]
+  collections CollectionProduct[]
+  orderItems  OrderItem[]
+  images      ProductImage[]
+  @@schema("public") 
+}
+
+// Model for product variants
+model ProductVariant {
+  id                Int         @id @default(autoincrement())
+  variantId         BigInt      @unique
+  productId         Int
+  title             String?
+  price             Float?
+  sku               String?
+  inventoryQuantity Int?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  product           Product     @relation(fields: [productId], references: [id])
+  orderItems        OrderItem[]
+  @@schema("public")
+}
+
+// Model for orders
+model Order {
+  id                Int              @id @default(autoincrement())
+  orderId           BigInt           @unique
+  shopId            Int
+  customerId        Int?
+  orderNumber       String
+  email             String?
+  financialStatus   String?
+  fulfillmentStatus String?
+  totalPrice        Float?
+  currency          String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  shop              Shop             @relation(fields: [shopId], references: [id])
+  customer          Customer?        @relation(fields: [customerId], references: [id])
+  items             OrderItem[]
+  shippingAddress   ShippingAddress?
+  billingAddress    BillingAddress?
+  @@schema("public") 
+}
+
+// Model for order items
+model OrderItem {
+  id               Int             @id @default(autoincrement())
+  orderId          Int
+  productVariantId Int?
+  productId        Int?
+  quantity         Int
+  price            Float
+  order            Order           @relation(fields: [orderId], references: [id])
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
+  product          Product?        @relation(fields: [productId], references: [id])
+  @@schema("public") 
+}
+
+// Model for collections
+model Collection {
+  id           Int                 @id @default(autoincrement())
+  collectionId BigInt              @unique
+  shopId       Int
+  handle       String
+  title        String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  shop         Shop                @relation(fields: [shopId], references: [id])
+  products     CollectionProduct[]
+  @@schema("public") 
+}
+
+// Model for collection products (join table)
+model CollectionProduct {
+  collectionId Int
+  productId    Int
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  product      Product    @relation(fields: [productId], references: [id])
+
+  @@id([collectionId, productId])
+  @@schema("public") 
+}
+
+// Model for product images
+model ProductImage {
+  id                Int      @id @default(autoincrement())
+  imageId           BigInt   @unique
+  productId         Int
+  position          Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  alt               String?
+  width             Int?
+  height            Int?
+  src               String
+  variantIds        String? // JSON array of variant IDs
+  adminGraphqlApiId String?
+  product           Product  @relation(fields: [productId], references: [id])
+  @@schema("public") 
+}
+
+// Model for customer addresses
+model CustomerAddress {
+  id           Int      @id @default(autoincrement())
+  addressId    BigInt   @unique
+  customerId   Int
+  firstName    String?
+  lastName     String?
+  company      String?
+  address1     String?
+  address2     String?
+  city         String?
+  province     String?
+  country      String?
+  zip          String?
+  phone        String?
+  name         String?
+  provinceCode String?
+  countryCode  String?
+  countryName  String?
+  default      Boolean  @default(false)
+  customer     Customer @relation(fields: [customerId], references: [id])
+  @@schema("public") 
+}
+
+// Model for shipping addresses
+model ShippingAddress {
+  id           Int     @id @default(autoincrement())
+  orderId      Int     @unique
+  firstName    String?
+  lastName     String?
+  company      String?
+  address1     String?
+  address2     String?
+  city         String?
+  province     String?
+  country      String?
+  zip          String?
+  phone        String?
+  name         String?
+  countryCode  String?
+  provinceCode String?
+  latitude     Float?
+  longitude    Float?
+  order        Order   @relation(fields: [orderId], references: [id])
+  @@schema("public") 
+}
+
+// Model for billing addresses
+model BillingAddress {
+  id           Int     @id @default(autoincrement())
+  orderId      Int     @unique
+  firstName    String?
+  lastName     String?
+  company      String?
+  address1     String?
+  address2     String?
+  city         String?
+  province     String?
+  country      String?
+  zip          String?
+  phone        String?
+  name         String?
+  countryCode  String?
+  provinceCode String?
+  latitude     Float?
+  longitude    Float?
+  order        Order   @relation(fields: [orderId], references: [id])
+  @@schema("public") 
+}
+
+// Model for feature usage tracking
+model FeatureUsage {
+  id          Int      @id @default(autoincrement())
+  shopId      Int
+  featureName String
+  usageData   String?  // JSON string for additional data
+  createdAt   DateTime @default(now())
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  @@schema("public") 
+}
+
+// Model for sync logs
+model SyncLog {
+  id               Int       @id @default(autoincrement())
+  shopId           Int
+  syncType         String // initial, webhook, manual
+  entityType       String // products, customers, orders, collections, shop
+  status           String // started, completed, failed, partial
+  recordsProcessed Int       @default(0)
+  recordsTotal     Int       @default(0)
+  errorMessage     String?
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  shop             Shop      @relation(fields: [shopId], references: [id])
+  @@schema("public") 
+}
+
+// --- Google Analytics Schema ---
+
+model GoogleAnalyticsSession {
+  id                    Int      @id @default(autoincrement())
+  sessionId             String   @unique
+  userPseudoId          String?
+  sessionStart          DateTime?
+  sessionSource         String?
+  sessionMedium         String?
+  sessionCampaignName   String?
+  sessionCampaignContent String?
+  sessionCampaignTerm   String?
+  sessionDefaultChannelGroup String?
+  pageReferrer          String?
+  deviceCategory        String?
+  platform              String?
+  country               String?
+  region                String?
+  city                  String?
+  sessions              Int?
+  engagedSessions       Int?
+  engagementTime        Float?   // userEngagementDuration (seconds)
+  sessionDuration       Float?   // averageSessionDuration (seconds)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  pageviews             GoogleAnalyticsPageview[]
+  events                GoogleAnalyticsEvent[]
+  trafficSource         GoogleAnalyticsTrafficSource?
+
+  @@schema("google_analytics")
+}
+
+model GoogleAnalyticsPageview {
+  id            Int      @id @default(autoincrement())
+  sessionId     Int
+  pagePath      String
+  pageTitle     String?
+  pageUrl       String?
+  referrer      String?
+  eventTime     DateTime
+  createdAt     DateTime @default(now())
+
+  // Relation
+  session       GoogleAnalyticsSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@schema("google_analytics")
+}
+
+model GoogleAnalyticsEvent {
+  id            Int      @id @default(autoincrement())
+  sessionId     Int
+  eventName     String
+  eventParams   String? // JSON string
+  eventTime     DateTime
+  createdAt     DateTime @default(now())
+
+  // Relation
+  session       GoogleAnalyticsSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@schema("google_analytics")
+}
+
+model GoogleAnalyticsTrafficSource {
+  id                 Int      @id @default(autoincrement())
+  sessionId          Int      @unique
+  date               DateTime
+  source             String
+  medium             String
+  campaignName       String?
+  channelGroup       String
+  referrer           String?
+  deviceCategory     String
+  platform           String
+  country            String
+  sessions           Int
+  engagedSessions    Int
+  engagementDuration Int
+  avgSessionDuration Float
+  createdAt          DateTime @default(now())
+
+  // Relation
+  session            GoogleAnalyticsSession @relation(fields: [sessionId], references: [id])
+
+  @@schema("google_analytics")
+}
+
+// --- Historical Data API Tables ---
+
+// Daily aggregated session data for historical analysis
+model GoogleAnalyticsHistoricalSessions {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  source                String?
+  medium                String?
+  campaignName          String?
+  channelGroup          String?
+  deviceCategory        String?
+  operatingSystem       String?
+  browser               String?
+  country               String?
+  region                String?
+  city                  String?
+  sessions              Int      @default(0)
+  users                 Int      @default(0)
+  newUsers              Int      @default(0)
+  engagedSessions       Int      @default(0)
+  bounceRate            Float?
+  averageSessionDuration Float?
+  screenPageViews       Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, source, medium, deviceCategory, country])
+  @@index([date])
+  @@index([source, medium])
+  @@schema("google_analytics")
+}
+
+// Daily page performance data for SEO optimization
+model GoogleAnalyticsHistoricalPages {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  pagePath              String
+  pageTitle             String?
+  landingPage           Boolean  @default(false)
+  screenPageViews       Int      @default(0)
+  uniquePageViews       Int      @default(0)
+  entrances             Int      @default(0)
+  exits                 Int      @default(0)
+  bounceRate            Float?
+  averageTimeOnPage     Float?
+  exitRate              Float?
+  // SEO-specific metrics
+  organicSessions       Int      @default(0)
+  organicUsers          Int      @default(0)
+  searchQueries         String?  // JSON array of search terms that led to this page
+  topReferrers          String?  // JSON array of top referring domains
+  deviceBreakdown       String?  // JSON object with device category stats
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, pagePath])
+  @@index([date])
+  @@index([pagePath])
+  @@index([organicSessions])
+  @@schema("google_analytics")
+}
+
+// Daily traffic source data for marketing attribution
+model GoogleAnalyticsHistoricalTraffic {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  source                String
+  medium                String
+  campaignName          String?
+  campaignId            String?
+  channelGroup          String
+  sessions              Int      @default(0)
+  users                 Int      @default(0)
+  newUsers              Int      @default(0)
+  engagedSessions       Int      @default(0)
+  bounceRate            Float?
+  averageSessionDuration Float?
+  screenPageViews       Int      @default(0)
+  conversions           Int      @default(0)
+  conversionRate        Float?
+  // E-commerce metrics
+  purchaseRevenue       Float?
+  transactions          Int      @default(0)
+  itemsPerTransaction   Float?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, source, medium, campaignName])
+  @@index([date])
+  @@index([source, medium])
+  @@index([channelGroup])
+  @@schema("google_analytics")
+}
+
+// Daily device and technology data
+model GoogleAnalyticsHistoricalDevices {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  deviceCategory        String
+  operatingSystem       String?
+  operatingSystemVersion String?
+  browser               String?
+  browserVersion        String?
+  screenResolution      String?
+  sessions              Int      @default(0)
+  users                 Int      @default(0)
+  newUsers              Int      @default(0)
+  engagedSessions       Int      @default(0)
+  bounceRate            Float?
+  averageSessionDuration Float?
+  screenPageViews       Int      @default(0)
+  conversions           Int      @default(0)
+  conversionRate        Float?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, deviceCategory, operatingSystem, browser])
+  @@index([date])
+  @@index([deviceCategory])
+  @@schema("google_analytics")
+}
+
+// Daily geographic data for market analysis
+model GoogleAnalyticsHistoricalGeo {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  country               String
+  region                String?
+  city                  String?
+  continent             String?
+  subContinent          String?
+  sessions              Int      @default(0)
+  users                 Int      @default(0)
+  newUsers              Int      @default(0)
+  engagedSessions       Int      @default(0)
+  bounceRate            Float?
+  averageSessionDuration Float?
+  screenPageViews       Int      @default(0)
+  conversions           Int      @default(0)
+  conversionRate        Float?
+  // E-commerce metrics
+  purchaseRevenue       Float?
+  transactions          Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, country, region, city])
+  @@index([date])
+  @@index([country])
+  @@schema("google_analytics")
+}
+
+// Daily search console data (if available via Data API)
+model GoogleAnalyticsHistoricalSearch {
+  id                    Int      @id @default(autoincrement())
+  date                  DateTime @db.Date
+  query                 String
+  page                  String?
+  country               String?
+  device                String?
+  clicks                Int      @default(0)
+  impressions           Int      @default(0)
+  ctr                   Float?   // Click-through rate
+  position              Float?   // Average position in search results
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([date, query, page, country, device])
+  @@index([date])
+  @@index([query])
+  @@index([page])
+  @@schema("google_analytics")
+}

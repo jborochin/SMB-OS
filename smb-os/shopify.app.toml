@@ -1,0 +1,41 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ace4eaba7151f7fcaf8e970c57604fe6"
+name = "SMB-OS"
+handle = "smb-os"
+application_url = "https://manufactured-cultural-islamic-took.trycloudflare.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2025-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/create" ]
+  uri = "/webhooks/products/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/update" ]
+  uri = "/webhooks/products/update"
+
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,read_orders,read_products,write_customers,write_orders,write_products"
+
+[auth]
+redirect_urls = ["https://manufactured-cultural-islamic-took.trycloudflare.com/auth/callback", "https://manufactured-cultural-islamic-took.trycloudflare.com/auth/shopify/callback", "https://manufactured-cultural-islamic-took.trycloudflare.com/api/auth/callback"]
+
+[pos]
+embedded = false
